@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"runtime"
 	"testing"
 )
 
@@ -11,8 +12,21 @@ func TestLibraryDirectoryExists(t *testing.T) {
 	}
 	for i := range deflib {
 		folder := deflib[i]
-		if _, err := os.Stat(folder); os.IsNotExist(err) {
-			t.Log("not exist:", folder)
+		_, err := os.Stat(folder)
+		if err != nil && os.IsExist(err) {
+			continue
 		}
+		t.Log(folder, err)
+	}
+}
+
+func TestReadLdSoConfBypassInWindows(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.SkipNow()
+	}
+	paths := make([]string, 0)
+	outputs := readLdSoConf("", paths)
+	if len(paths) != len(outputs) {
+		t.FailNow()
 	}
 }
