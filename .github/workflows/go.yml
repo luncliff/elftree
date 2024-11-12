@@ -23,3 +23,5 @@ jobs:
           gocache-${{ runner.os }}-
     - name: "Run go(build)"
       run: go build
+    - name: "Run go(test)"
+      run: go test
