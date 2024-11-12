@@ -10,7 +10,7 @@ package main
 import (
 	"debug/elf"
 	"fmt"
-	str "strings"
+	"strings"
 )
 
 const (
@@ -85,7 +85,7 @@ func strFlags(val uint64) string {
 		ret = append(ret, "STATIC_TLS")
 	}
 
-	return str.Join(ret, "|")
+	return strings.Join(ret, "|")
 }
 
 // convert DT_FLAGS_1
@@ -171,7 +171,7 @@ func strFlags1(val uint64) string {
 		ret = append(ret, "SINGLETON")
 	}
 
-	return str.Join(ret, "|")
+	return strings.Join(ret, "|")
 }
 
 func makeDynamicStrings(info *DepsInfo) []string {
@@ -286,7 +286,7 @@ func makeSectionString(idx int, sec *elf.Section) string {
 	if (val & 0x800) != 0 {
 		flag = append(flag, "C") // compressed
 	}
-	f := str.Join(flag, "")
+	f := strings.Join(flag, "")
 
 	t := sec.Type.String()
 	return fmt.Sprintf("  [%2d] %-24s %-12s %8x %8x %4s",

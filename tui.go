@@ -9,7 +9,8 @@ package main
 
 import (
 	"fmt"
-	tui "github.com/airking05/termui" // for termui bug #177
+
+	"github.com/gizak/termui"
 )
 
 type TreeItem struct {
@@ -23,15 +24,15 @@ type TreeItem struct {
 }
 
 type TreeView struct {
-	tui.Block // embedded
-	Root      *TreeItem
-	Top       *TreeItem
-	Curr      *TreeItem
+	termui.Block // embedded
+	Root         *TreeItem
+	Top          *TreeItem
+	Curr         *TreeItem
 
-	ItemFgColor  tui.Attribute
-	ItemBgColor  tui.Attribute
-	FocusFgColor tui.Attribute
-	FocusBgColor tui.Attribute
+	ItemFgColor  termui.Attribute
+	ItemBgColor  termui.Attribute
+	FocusFgColor termui.Attribute
+	FocusBgColor termui.Attribute
 
 	idx int // current cursor position
 	off int // first entry displayed
@@ -67,15 +68,15 @@ var (
 )
 
 type StatusLine struct {
-	tui.Block // embedded
-	tv        *TreeView
+	termui.Block // embedded
+	tv           *TreeView
 }
 
 func NewTreeView() *TreeView {
-	tv := &TreeView{Block: *tui.NewBlock()}
+	tv := &TreeView{Block: *termui.NewBlock()}
 
-	tv.ItemFgColor = tui.ThemeAttr("list.item.fg")
-	tv.ItemBgColor = tui.ThemeAttr("list.item.bg")
+	tv.ItemFgColor = termui.ThemeAttr("list.item.fg")
+	tv.ItemBgColor = termui.ThemeAttr("list.item.bg")
 
 	tv.idx = 0
 	tv.off = 0
@@ -83,7 +84,7 @@ func NewTreeView() *TreeView {
 }
 
 func NewStatusLine(tv *TreeView) *StatusLine {
-	sl := &StatusLine{Block: *tui.NewBlock()}
+	sl := &StatusLine{Block: *termui.NewBlock()}
 
 	sl.Block.Border = false
 
@@ -163,7 +164,7 @@ func (ti *TreeItem) toggle() {
 	}
 }
 
-func (tv *TreeView) drawDepsNode(buf tui.Buffer, dn *DepsNode, i, printed int, folded bool) {
+func (tv *TreeView) drawDepsNode(buf termui.Buffer, dn *DepsNode, i, printed int, folded bool) {
 	fg := tv.ItemFgColor
 	bg := tv.ItemBgColor
 	if i == tv.idx {
@@ -183,15 +184,15 @@ func (tv *TreeView) drawDepsNode(buf tui.Buffer, dn *DepsNode, i, printed int, f
 		text_width = 0
 	}
 
-	cs := tui.DefaultTxBuilder.Build(dn.name, fg, bg)
-	cs = tui.DTrimTxCls(cs, text_width)
+	cs := termui.DefaultTxBuilder.Build(dn.name, fg, bg)
+	cs = termui.DTrimTxCls(cs, text_width)
 
 	j := 0
 	if i == tv.idx {
 		// draw current line cursor from the beginning
 		for j < indent {
 			if j+1 > tv.pos {
-				buf.Set(j+1-tv.pos, printed+1, tui.Cell{' ', fg, bg})
+				buf.Set(j+1-tv.pos, printed+1, termui.Cell{' ', fg, bg})
 			}
 			j++
 		}
@@ -201,13 +202,13 @@ func (tv *TreeView) drawDepsNode(buf tui.Buffer, dn *DepsNode, i, printed int, f
 
 	if j+1 > tv.pos {
 		if folded {
-			buf.Set(j+1-tv.pos, printed+1, tui.Cell{'+', fg, bg})
+			buf.Set(j+1-tv.pos, printed+1, termui.Cell{'+', fg, bg})
 		} else {
-			buf.Set(j+1-tv.pos, printed+1, tui.Cell{'-', fg, bg})
+			buf.Set(j+1-tv.pos, printed+1, termui.Cell{'-', fg, bg})
 		}
 	}
 	if j+2 > tv.pos {
-		buf.Set(j+2-tv.pos, printed+1, tui.Cell{' ', fg, bg})
+		buf.Set(j+2-tv.pos, printed+1, termui.Cell{' ', fg, bg})
 	}
 	j += 2
 
@@ -226,13 +227,13 @@ func (tv *TreeView) drawDepsNode(buf tui.Buffer, dn *DepsNode, i, printed int, f
 	// draw current line cursor to the end
 	for j < tv.cols+tv.pos {
 		if j+1 > tv.pos {
-			buf.Set(j+1-tv.pos, printed+1, tui.Cell{' ', fg, bg})
+			buf.Set(j+1-tv.pos, printed+1, termui.Cell{' ', fg, bg})
 		}
 		j++
 	}
 }
 
-func (tv *TreeView) drawStrNode(buf tui.Buffer, s string, i, printed int, sign rune) {
+func (tv *TreeView) drawStrNode(buf termui.Buffer, s string, i, printed int, sign rune) {
 	fg := tv.ItemFgColor
 	bg := tv.ItemBgColor
 	if i == tv.idx {
@@ -242,15 +243,15 @@ func (tv *TreeView) drawStrNode(buf tui.Buffer, s string, i, printed int, sign r
 		}
 	}
 
-	cs := tui.DefaultTxBuilder.Build(s, fg, bg)
-	cs = tui.DTrimTxCls(cs, tv.cols-2)
+	cs := termui.DefaultTxBuilder.Build(s, fg, bg)
+	cs = termui.DTrimTxCls(cs, tv.cols-2)
 
 	j := 0
 	if j+1 > tv.pos {
-		buf.Set(tv.X+j+1-tv.pos, printed+1, tui.Cell{sign, fg, bg})
+		buf.Set(tv.X+j+1-tv.pos, printed+1, termui.Cell{sign, fg, bg})
 	}
 	if j+2 > tv.pos {
-		buf.Set(tv.X+j+2-tv.pos, printed+1, tui.Cell{' ', fg, bg})
+		buf.Set(tv.X+j+2-tv.pos, printed+1, termui.Cell{' ', fg, bg})
 	}
 	j += 2
 
@@ -269,14 +270,14 @@ func (tv *TreeView) drawStrNode(buf tui.Buffer, s string, i, printed int, sign r
 	// draw current line cursor to the end
 	for j < tv.cols+tv.pos {
 		if j+1 > tv.pos {
-			buf.Set(tv.X+j+1-tv.pos, printed+1, tui.Cell{' ', fg, bg})
+			buf.Set(tv.X+j+1-tv.pos, printed+1, termui.Cell{' ', fg, bg})
 		}
 		j++
 	}
 }
 
 // Buffer implements Bufferer interface.
-func (tv *TreeView) Buffer() tui.Buffer {
+func (tv *TreeView) Buffer() termui.Buffer {
 	buf := tv.Block.Buffer()
 
 	i := 0
@@ -448,7 +449,7 @@ func (tv *TreeView) Toggle() {
 }
 
 // Buffer implements Bufferer interface.
-func (sl *StatusLine) Buffer() tui.Buffer {
+func (sl *StatusLine) Buffer() termui.Buffer {
 	buf := sl.Block.Buffer()
 
 	var line string
@@ -468,14 +469,14 @@ func (sl *StatusLine) Buffer() tui.Buffer {
 		line = "ELF tree"
 	}
 
-	fg := tui.ColorBlack
-	bg := tui.ColorWhite
+	fg := termui.ColorBlack
+	bg := termui.ColorWhite
 
-	cs := tui.DefaultTxBuilder.Build(line, fg, bg)
-	cs = tui.DTrimTxCls(cs, sl.Width-3)
+	cs := termui.DefaultTxBuilder.Build(line, fg, bg)
+	cs = termui.DTrimTxCls(cs, sl.Width-3)
 
-	buf.Set(0, sl.Y, tui.Cell{' ', fg, bg})
-	buf.Set(1, sl.Y, tui.Cell{' ', fg, bg})
+	buf.Set(0, sl.Y, termui.Cell{' ', fg, bg})
+	buf.Set(1, sl.Y, termui.Cell{' ', fg, bg})
 
 	j := 2
 	for _, vv := range cs {
@@ -486,7 +487,7 @@ func (sl *StatusLine) Buffer() tui.Buffer {
 
 	// draw status line to the end
 	for j < sl.Width {
-		buf.Set(j, sl.Y, tui.Cell{' ', fg, bg})
+		buf.Set(j, sl.Y, termui.Cell{' ', fg, bg})
 		j++
 	}
 
@@ -688,29 +689,29 @@ func restoreInfoView(tv, iv *TreeView) {
 }
 
 func resize(tv, iv *TreeView, sl *StatusLine) {
-	tv.Height = tui.TermHeight() - 1
-	tv.Width = tui.TermWidth() * 3 / 5
+	tv.Height = termui.TermHeight() - 1
+	tv.Width = termui.TermWidth() * 3 / 5
 
 	tv.rows = tv.Height - 2 // exclude border at top and bottom
 	tv.cols = tv.Width - 2  // exclude border at left and right
 
-	iv.Height = tui.TermHeight() - 1
-	iv.Width = tui.TermWidth() - tv.Width
+	iv.Height = termui.TermHeight() - 1
+	iv.Width = termui.TermWidth() - tv.Width
 	iv.X = tv.Width
 
 	iv.rows = iv.Height - 2
 	iv.cols = iv.Width - 2
 
 	sl.Height = 1
-	sl.Width = tui.TermWidth()
-	sl.Y = tui.TermHeight() - 1
+	sl.Width = termui.TermWidth()
+	sl.Y = termui.TermHeight() - 1
 }
 
 func ShowWithTUI(dep *DepsNode) {
-	if err := tui.Init(); err != nil {
+	if err := termui.Init(); err != nil {
 		panic(err)
 	}
-	defer tui.Close()
+	defer termui.Close()
 
 	root := makeDepsItems(dep, nil)
 
@@ -720,15 +721,15 @@ func ShowWithTUI(dep *DepsNode) {
 	tv.Curr = root
 	tv.Top = root
 
-	tv.FocusFgColor = tui.ColorYellow
-	tv.FocusBgColor = tui.ColorBlue
+	tv.FocusFgColor = termui.ColorYellow
+	tv.FocusBgColor = termui.ColorBlue
 
 	tv.BorderLabel = "ELF Tree"
 
 	iv := NewTreeView()
 
-	iv.FocusFgColor = tui.ColorYellow
-	iv.FocusBgColor = tui.ColorBlue
+	iv.FocusFgColor = termui.ColorYellow
+	iv.FocusBgColor = termui.ColorBlue
 
 	sl := NewStatusLine(tv)
 
@@ -750,160 +751,160 @@ func ShowWithTUI(dep *DepsNode) {
 
 	resize(tv, iv, sl)
 
-	tui.Render(tv)
-	tui.Render(iv)
-	tui.Render(sl)
+	termui.Render(tv)
+	termui.Render(iv)
+	termui.Render(sl)
 
 	// handle key pressing
-	tui.Handle("/sys/kbd/q", func(tui.Event) {
+	termui.Handle("/sys/kbd/q", func(termui.Event) {
 		// press q to quit
-		tui.StopLoop()
+		termui.StopLoop()
 	})
-	tui.Handle("/sys/kbd/C-c", func(tui.Event) {
+	termui.Handle("/sys/kbd/C-c", func(termui.Event) {
 		// press Ctrl-C to quit
-		tui.StopLoop()
+		termui.StopLoop()
 	})
 
-	tui.Handle("/sys/kbd/f", func(tui.Event) {
+	termui.Handle("/sys/kbd/f", func(termui.Event) {
 		if focus == tv {
 			mode = MODE_FILE
 			restoreInfoView(tv, iv)
 		}
 
-		tui.Render(iv)
-		tui.Render(sl)
+		termui.Render(iv)
+		termui.Render(sl)
 	})
-	tui.Handle("/sys/kbd/y", func(tui.Event) {
+	termui.Handle("/sys/kbd/y", func(termui.Event) {
 		if focus == tv {
 			mode = MODE_SYMBOL
 			restoreInfoView(tv, iv)
 		}
 
-		tui.Render(iv)
-		tui.Render(sl)
+		termui.Render(iv)
+		termui.Render(sl)
 	})
-	tui.Handle("/sys/kbd/d", func(tui.Event) {
+	termui.Handle("/sys/kbd/d", func(termui.Event) {
 		if focus == tv {
 			mode = MODE_DYNAMIC
 			restoreInfoView(tv, iv)
 		}
 
-		tui.Render(iv)
-		tui.Render(sl)
+		termui.Render(iv)
+		termui.Render(sl)
 	})
-	tui.Handle("/sys/kbd/s", func(tui.Event) {
+	termui.Handle("/sys/kbd/s", func(termui.Event) {
 		if focus == tv {
 			mode = MODE_SECTION
 			restoreInfoView(tv, iv)
 		}
 
-		tui.Render(iv)
-		tui.Render(sl)
+		termui.Render(iv)
+		termui.Render(sl)
 	})
 
-	tui.Handle("/sys/kbd/<down>", func(tui.Event) {
+	termui.Handle("/sys/kbd/<down>", func(termui.Event) {
 		saveInfoView(tv, iv)
 		focus.Down()
 		restoreInfoView(tv, iv)
 
-		tui.Render(tv)
-		tui.Render(iv)
-		tui.Render(sl)
+		termui.Render(tv)
+		termui.Render(iv)
+		termui.Render(sl)
 
 	})
-	tui.Handle("/sys/kbd/<up>", func(tui.Event) {
+	termui.Handle("/sys/kbd/<up>", func(termui.Event) {
 		saveInfoView(tv, iv)
 		focus.Up()
 		restoreInfoView(tv, iv)
 
-		tui.Render(tv)
-		tui.Render(iv)
-		tui.Render(sl)
+		termui.Render(tv)
+		termui.Render(iv)
+		termui.Render(sl)
 
 	})
-	tui.Handle("/sys/kbd/<left>", func(tui.Event) {
+	termui.Handle("/sys/kbd/<left>", func(termui.Event) {
 		focus.Left(1)
-		tui.Render(focus)
+		termui.Render(focus)
 		// no need to redraw sl
 	})
-	tui.Handle("/sys/kbd/<right>", func(tui.Event) {
+	termui.Handle("/sys/kbd/<right>", func(termui.Event) {
 		focus.Right(1)
-		tui.Render(focus)
+		termui.Render(focus)
 		// no need to redraw sl
 	})
-	tui.Handle("/sys/kbd/<", func(tui.Event) {
+	termui.Handle("/sys/kbd/<", func(termui.Event) {
 		focus.Left(3)
-		tui.Render(focus)
+		termui.Render(focus)
 		// no need to redraw sl
 	})
-	tui.Handle("/sys/kbd/>", func(tui.Event) {
+	termui.Handle("/sys/kbd/>", func(termui.Event) {
 		focus.Right(3)
-		tui.Render(focus)
+		termui.Render(focus)
 		// no need to redraw sl
 	})
-	tui.Handle("/sys/kbd/<next>", func(tui.Event) {
+	termui.Handle("/sys/kbd/<next>", func(termui.Event) {
 		saveInfoView(tv, iv)
 		focus.PageDown()
 		restoreInfoView(tv, iv)
 
-		tui.Render(tv)
-		tui.Render(iv)
-		tui.Render(sl)
+		termui.Render(tv)
+		termui.Render(iv)
+		termui.Render(sl)
 	})
-	tui.Handle("/sys/kbd/<previous>", func(tui.Event) {
+	termui.Handle("/sys/kbd/<previous>", func(termui.Event) {
 		saveInfoView(tv, iv)
 		focus.PageUp()
 		restoreInfoView(tv, iv)
 
-		tui.Render(tv)
-		tui.Render(iv)
-		tui.Render(sl)
+		termui.Render(tv)
+		termui.Render(iv)
+		termui.Render(sl)
 	})
-	tui.Handle("/sys/kbd/<home>", func(tui.Event) {
+	termui.Handle("/sys/kbd/<home>", func(termui.Event) {
 		saveInfoView(tv, iv)
 		focus.Home()
 		restoreInfoView(tv, iv)
 
-		tui.Render(tv)
-		tui.Render(iv)
-		tui.Render(sl)
+		termui.Render(tv)
+		termui.Render(iv)
+		termui.Render(sl)
 	})
-	tui.Handle("/sys/kbd/<end>", func(tui.Event) {
+	termui.Handle("/sys/kbd/<end>", func(termui.Event) {
 		saveInfoView(tv, iv)
 		focus.End()
 		restoreInfoView(tv, iv)
 
-		tui.Render(tv)
-		tui.Render(iv)
-		tui.Render(sl)
+		termui.Render(tv)
+		termui.Render(iv)
+		termui.Render(sl)
 	})
 
-	tui.Handle("/sys/kbd/<enter>", func(tui.Event) {
+	termui.Handle("/sys/kbd/<enter>", func(termui.Event) {
 		focus.Toggle()
-		tui.Render(tv)
-		tui.Render(iv)
-		tui.Render(sl)
+		termui.Render(tv)
+		termui.Render(iv)
+		termui.Render(sl)
 	})
 
-	tui.Handle("/sys/kbd/<tab>", func(tui.Event) {
+	termui.Handle("/sys/kbd/<tab>", func(termui.Event) {
 		if focus == tv {
 			focus = iv
 		} else {
 			focus = tv
 		}
 
-		tui.Render(tv)
-		tui.Render(iv)
-		tui.Render(sl)
+		termui.Render(tv)
+		termui.Render(iv)
+		termui.Render(sl)
 	})
 
-	tui.Handle("/sys/wnd/resize", func(tui.Event) {
+	termui.Handle("/sys/wnd/resize", func(termui.Event) {
 		resize(tv, iv, sl)
 
-		tui.Render(tv)
-		tui.Render(iv)
-		tui.Render(sl)
+		termui.Render(tv)
+		termui.Render(iv)
+		termui.Render(sl)
 	})
 
-	tui.Loop()
+	termui.Loop()
 }
