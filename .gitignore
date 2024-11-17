@@ -1,3 +1,4 @@
 elftree
 *.o
 *.exe
+*.txt

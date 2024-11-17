@@ -2,6 +2,11 @@ name: Go
 
 on: [push, pull_request]
 
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+
 jobs:
   build:
     strategy:
@@ -21,7 +26,14 @@ jobs:
         key: gocache-${{ runner.os }}-${{ hashFiles('**/go.sum') }}
         restore-keys: |
           gocache-${{ runner.os }}-
+
     - name: "Run go(build)"
       run: go build
+
     - name: "Run go(test)"
-      run: go test
+      run: go test -cover -coverprofile coverage.txt -v ./...
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: "code-coverage"
+        path: coverage.txt
