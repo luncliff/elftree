@@ -1,6 +1,6 @@
 module github.com/luncliff/elftree
 
-go 1.23.2
+go 1.24.0
 
 require github.com/gizak/termui v2.2.0+incompatible
 
