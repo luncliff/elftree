@@ -290,5 +290,5 @@ func makeSectionString(idx int, sec *elf.Section) string {
 
 	t := sec.Type.String()
 	return fmt.Sprintf("  [%2d] %-24s %-12s %8x %8x %4s",
-		idx, sec.Name, t[4:len(t)], sec.Offset, sec.Size, f)
+		idx, sec.Name, t[4:], sec.Offset, sec.Size, f)
 }
