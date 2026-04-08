@@ -192,7 +192,7 @@ func (tv *TreeView) drawDepsNode(buf termui.Buffer, dn *DepsNode, i, printed int
 		// draw current line cursor from the beginning
 		for j < indent {
 			if j+1 > tv.pos {
-				buf.Set(j+1-tv.pos, printed+1, termui.Cell{' ', fg, bg})
+				buf.Set(j+1-tv.pos, printed+1, termui.Cell{Ch: ' ', Fg: fg, Bg: bg})
 			}
 			j++
 		}
@@ -202,13 +202,13 @@ func (tv *TreeView) drawDepsNode(buf termui.Buffer, dn *DepsNode, i, printed int
 
 	if j+1 > tv.pos {
 		if folded {
-			buf.Set(j+1-tv.pos, printed+1, termui.Cell{'+', fg, bg})
+			buf.Set(j+1-tv.pos, printed+1, termui.Cell{Ch: '+', Fg: fg, Bg: bg})
 		} else {
-			buf.Set(j+1-tv.pos, printed+1, termui.Cell{'-', fg, bg})
+			buf.Set(j+1-tv.pos, printed+1, termui.Cell{Ch: '-', Fg: fg, Bg: bg})
 		}
 	}
 	if j+2 > tv.pos {
-		buf.Set(j+2-tv.pos, printed+1, termui.Cell{' ', fg, bg})
+		buf.Set(j+2-tv.pos, printed+1, termui.Cell{Ch: ' ', Fg: fg, Bg: bg})
 	}
 	j += 2
 
@@ -227,7 +227,7 @@ func (tv *TreeView) drawDepsNode(buf termui.Buffer, dn *DepsNode, i, printed int
 	// draw current line cursor to the end
 	for j < tv.cols+tv.pos {
 		if j+1 > tv.pos {
-			buf.Set(j+1-tv.pos, printed+1, termui.Cell{' ', fg, bg})
+			buf.Set(j+1-tv.pos, printed+1, termui.Cell{Ch: ' ', Fg: fg, Bg: bg})
 		}
 		j++
 	}
@@ -248,10 +248,10 @@ func (tv *TreeView) drawStrNode(buf termui.Buffer, s string, i, printed int, sig
 
 	j := 0
 	if j+1 > tv.pos {
-		buf.Set(tv.X+j+1-tv.pos, printed+1, termui.Cell{sign, fg, bg})
+		buf.Set(tv.X+j+1-tv.pos, printed+1, termui.Cell{Ch: sign, Fg: fg, Bg: bg})
 	}
 	if j+2 > tv.pos {
-		buf.Set(tv.X+j+2-tv.pos, printed+1, termui.Cell{' ', fg, bg})
+		buf.Set(tv.X+j+2-tv.pos, printed+1, termui.Cell{Ch: ' ', Fg: fg, Bg: bg})
 	}
 	j += 2
 
@@ -270,7 +270,7 @@ func (tv *TreeView) drawStrNode(buf termui.Buffer, s string, i, printed int, sig
 	// draw current line cursor to the end
 	for j < tv.cols+tv.pos {
 		if j+1 > tv.pos {
-			buf.Set(tv.X+j+1-tv.pos, printed+1, termui.Cell{' ', fg, bg})
+			buf.Set(tv.X+j+1-tv.pos, printed+1, termui.Cell{Ch: ' ', Fg: fg, Bg: bg})
 		}
 		j++
 	}
@@ -475,8 +475,8 @@ func (sl *StatusLine) Buffer() termui.Buffer {
 	cs := termui.DefaultTxBuilder.Build(line, fg, bg)
 	cs = termui.DTrimTxCls(cs, sl.Width-3)
 
-	buf.Set(0, sl.Y, termui.Cell{' ', fg, bg})
-	buf.Set(1, sl.Y, termui.Cell{' ', fg, bg})
+	buf.Set(0, sl.Y, termui.Cell{Ch: ' ', Fg: fg, Bg: bg})
+	buf.Set(1, sl.Y, termui.Cell{Ch: ' ', Fg: fg, Bg: bg})
 
 	j := 2
 	for _, vv := range cs {
@@ -487,7 +487,7 @@ func (sl *StatusLine) Buffer() termui.Buffer {
 
 	// draw status line to the end
 	for j < sl.Width {
-		buf.Set(j, sl.Y, termui.Cell{' ', fg, bg})
+		buf.Set(j, sl.Y, termui.Cell{Ch: ' ', Fg: fg, Bg: bg})
 		j++
 	}
 

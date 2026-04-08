@@ -213,6 +213,7 @@ func readDynamic(f *elf.File, info *DepsInfo) int {
 	}
 
 	count = uint(dyn.Size / dyn.Entsize)
+dynLoop:
 	for i = 0; i < count; i++ {
 		var tag, val uint64
 
@@ -227,7 +228,7 @@ func readDynamic(f *elf.File, info *DepsInfo) int {
 		dtag := elf.DynTag(tag)
 		switch dtag {
 		case elf.DT_NULL:
-			break
+			break dynLoop
 		case elf.DT_NEEDED:
 			fallthrough
 		case elf.DT_RPATH:
@@ -237,10 +238,8 @@ func readDynamic(f *elf.File, info *DepsInfo) int {
 		case elf.DT_SONAME:
 			sval := readElfString(stab, val)
 			info.dyns = append(info.dyns, DynInfo{dtag, sval})
-			break
 		default:
 			info.dyns = append(info.dyns, DynInfo{dtag, val})
-			break
 		}
 	}
 	return 0
