@@ -5,7 +5,7 @@
  *
  * Released under MIT license.
  */
-package main
+package elftree
 
 import (
 	"debug/elf"
