@@ -5,414 +5,172 @@
  *
  * Released under MIT license.
  */
+
+// Command elftree prints the shared library dependencies of an ELF binary.
 package main
 
 import (
-	"bufio"
-	"debug/elf"
-	"encoding/binary"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
-	"path"
-	"path/filepath"
+	"runtime/debug"
 	"strings"
+
+	"github.com/luncliff/elftree/internal/elftree"
 )
 
-type DepsNode struct {
-	name   string
-	parent *DepsNode
-	child  []*DepsNode
-	depth  int
-}
+// version is overridable at build time with
+// `-ldflags "-X main.version=v1.2.3"`. When empty, the version recorded by
+// `go install` is used instead.
+var version string
 
-type DynInfo struct {
-	tag elf.DynTag
-	val interface{}
-}
-
-type DepsInfo struct {
-	path   string
-	mach   elf.Machine
-	bits   elf.Class
-	endian binary.ByteOrder
-	kind   elf.Type
-	abi    elf.OSABI
-	ver    uint8
-
-	libs []string
-	isym []elf.ImportedSymbol
-	dsym []elf.Symbol
-	syms []elf.Symbol
-	prog []*elf.Prog
-	sect []*elf.Section
-	dyns []DynInfo
-}
-
-var (
-	deps      map[string]DepsInfo
-	deps_list []*DepsNode
-	deps_root *DepsNode
-	deflib    []string
-	envlib    string
-	conflib   []string
+const (
+	exitOK    = 0
+	exitError = 1
+	exitUsage = 2
 )
 
-// command-line options
-var (
-	verbose   bool
-	showPath  bool
-	showTui   bool
-	showStdio bool
-)
+type options struct {
+	showPath bool
+	verbose  bool
+	format   string
+	depth    int
+	sections bool
+	segments bool
+	dynamic  bool
+	symbols  bool
+	version  bool
+}
 
-func readLdSoConf(name string, libpath []string) []string {
-	f, err := os.Open(name)
-	if err != nil {
-		return libpath
+func newFlagSet(opts *options, out io.Writer) *flag.FlagSet {
+	fs := flag.NewFlagSet("elftree", flag.ContinueOnError)
+	fs.SetOutput(out)
+
+	// Each option has a POSIX style short name and a GNU style long name.
+	// Go's flag package accepts both `-name` and `--name` spellings.
+	fs.BoolVar(&opts.showPath, "path", false, "show the resolved path of each library")
+	fs.BoolVar(&opts.showPath, "p", false, "alias for --path")
+	fs.BoolVar(&opts.verbose, "verbose", false, "show a summary of the ELF file")
+	fs.BoolVar(&opts.verbose, "v", false, "alias for --verbose")
+	fs.StringVar(&opts.format, "format", "tree", "output format: tree, flat or json")
+	fs.StringVar(&opts.format, "f", "tree", "alias for --format")
+	fs.IntVar(&opts.depth, "depth", 0, "limit the dependency depth (0 means no limit)")
+	fs.IntVar(&opts.depth, "d", 0, "alias for --depth")
+	fs.BoolVar(&opts.sections, "sections", false, "show the section headers")
+	fs.BoolVar(&opts.segments, "segments", false, "show the program headers")
+	fs.BoolVar(&opts.dynamic, "dynamic", false, "show the .dynamic section entries")
+	fs.BoolVar(&opts.symbols, "symbols", false, "show the symbol tables")
+	fs.BoolVar(&opts.version, "version", false, "show the version and exit")
+
+	fs.Usage = func() {
+		fmt.Fprintln(out, "elftree - show library dependencies of an ELF binary")
+		fmt.Fprintln(out)
+		fmt.Fprintln(out, "Usage:")
+		fmt.Fprintln(out, "  elftree [options] <file>")
+		fmt.Fprintln(out)
+		fmt.Fprintln(out, "Options:")
+		fs.PrintDefaults()
+		fmt.Fprintln(out)
+		fmt.Fprintln(out, "Examples:")
+		fmt.Fprintln(out, "  elftree /bin/ls")
+		fmt.Fprintln(out, "  elftree --path --depth 2 /bin/ls")
+		fmt.Fprintln(out, "  elftree --format json /lib/x86_64-linux-gnu/libc.so.6")
 	}
-	defer f.Close()
+	return fs
+}
 
-	s := bufio.NewScanner(f)
-	for s.Scan() {
-		t := s.Text()
+func buildVersion() string {
+	if version != "" {
+		return version
+	}
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" {
+		return info.Main.Version
+	}
+	return "(devel)"
+}
 
-		if len(strings.TrimSpace(t)) == 0 {
+func run(args []string, stdout, stderr io.Writer) int {
+	var opts options
+
+	fs := newFlagSet(&opts, stderr)
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return exitOK
+		}
+		return exitUsage
+	}
+
+	if opts.version {
+		fmt.Fprintf(stdout, "elftree %s\n", buildVersion())
+		return exitOK
+	}
+
+	rest := fs.Args()
+	if len(rest) != 1 {
+		fmt.Fprintln(stderr, "elftree: exactly one ELF file is required")
+		fs.Usage()
+		return exitUsage
+	}
+
+	format := strings.ToLower(opts.format)
+	switch format {
+	case "tree", "flat", "json":
+	default:
+		fmt.Fprintf(stderr, "elftree: unknown output format %q (want tree, flat or json)\n", opts.format)
+		return exitUsage
+	}
+	if opts.depth < 0 {
+		fmt.Fprintln(stderr, "elftree: --depth must not be negative")
+		return exitUsage
+	}
+
+	graph, err := elftree.Load(rest[0])
+	if err != nil {
+		fmt.Fprintf(stderr, "elftree: %v\n", err)
+		return exitError
+	}
+
+	printOpts := elftree.PrintOptions{ShowPath: opts.showPath, MaxDepth: opts.depth}
+	switch format {
+	case "json":
+		err = graph.WriteJSON(stdout, printOpts)
+	case "flat":
+		err = graph.WriteFlat(stdout, printOpts)
+	default:
+		err = graph.WriteTree(stdout, printOpts)
+	}
+	if err != nil {
+		fmt.Fprintf(stderr, "elftree: %v\n", err)
+		return exitError
+	}
+
+	if format == "json" {
+		return exitOK
+	}
+
+	for _, step := range []struct {
+		enabled bool
+		write   func(io.Writer) error
+	}{
+		{opts.verbose, graph.WriteSummary},
+		{opts.segments, graph.WriteSegments},
+		{opts.sections, graph.WriteSections},
+		{opts.dynamic, graph.WriteDynamic},
+		{opts.symbols, graph.WriteSymbols},
+	} {
+		if !step.enabled {
 			continue
 		}
-		if strings.HasPrefix(t, "#") {
-			continue
-		}
-
-		if strings.HasPrefix(t, "include") {
-			libs, err := filepath.Glob(t[8:])
-			if err != nil {
-				continue
-			}
-			for _, l := range libs {
-				libpath = readLdSoConf(l, libpath)
-			}
-		} else {
-			libpath = append(libpath, t)
+		if err := step.write(stdout); err != nil {
+			fmt.Fprintf(stderr, "elftree: %v\n", err)
+			return exitError
 		}
 	}
-	return libpath
-}
-
-func init() {
-	deps = make(map[string]DepsInfo)
-	deflib = []string{"/lib/", "/usr/lib/", "/lib64", "/usr/lib64"}
-	envlib = os.Getenv("LD_LIBRARY_PATH")
-	conflib = readLdSoConf("/etc/ld.so.conf", conflib)
-
-	flag.BoolVar(&verbose, "v", false, "Show binary info")
-	flag.BoolVar(&showPath, "p", false, "Show library path")
-	flag.BoolVar(&showTui, "tui", true, "Show it with TUI")
-	flag.BoolVar(&showStdio, "stdio", false, "Show it on standard IO")
-}
-
-// search shared libraries as described in `man ld.so(8)`
-func findLib(name string, parent *DepsNode) string {
-	if strings.Contains(name, "/") {
-		return name
-	}
-
-	// check DT_RPATH attribute
-	if parent != nil {
-		info := deps[parent.name]
-		for _, dyn := range info.dyns {
-			if dyn.tag != elf.DT_RPATH {
-				continue
-			}
-
-			fullpath := path.Join(dyn.val.(string), name)
-			if _, err := os.Stat(fullpath); err == nil {
-				return fullpath
-			}
-		}
-	}
-
-	// check LD_LIBRARY_PATH environ
-	for _, libpath := range strings.Split(envlib, ":") {
-		fullpath := path.Join(libpath, name)
-		if _, err := os.Stat(fullpath); err == nil {
-			return fullpath
-		}
-	}
-
-	// check DT_RUNPATH attribute
-	if parent != nil {
-		info := deps[parent.name]
-		for _, dyn := range info.dyns {
-			if dyn.tag != elf.DT_RUNPATH {
-				continue
-			}
-
-			fullpath := path.Join(dyn.val.(string), name)
-			if _, err := os.Stat(fullpath); err == nil {
-				return fullpath
-			}
-		}
-	}
-
-	// check libraries in /etc/ld.so.conf
-	for _, libpath := range conflib {
-		fullpath := path.Join(libpath, name)
-		if _, err := os.Stat(fullpath); err == nil {
-			return fullpath
-		}
-	}
-
-	// check default library directories
-	for _, libpath := range deflib {
-		fullpath := path.Join(libpath, name)
-		if _, err := os.Stat(fullpath); err == nil {
-			return fullpath
-		}
-	}
-	return ""
-}
-
-func realPath(pathname string) string {
-	if pathname == "" {
-		return ""
-	}
-
-	relpath, _ := filepath.EvalSymlinks(pathname)
-	abspath, _ := filepath.Abs(relpath)
-
-	return abspath
-}
-
-func readElfString(strtab []byte, i uint64) string {
-	var len uint64
-
-	for len = 0; strtab[i+len] != '\x00'; len++ {
-		continue
-	}
-
-	return string(strtab[i : i+len])
-}
-
-func readDynamic(f *elf.File, info *DepsInfo) int {
-	var i, count uint
-
-	dyn := f.Section(".dynamic")
-	if dyn == nil {
-		return -1
-	}
-
-	data, err := dyn.Data()
-	if err != nil {
-		return -1
-	}
-	str := f.Section(".dynstr")
-	stab, err := str.Data()
-	if err != nil {
-		return -1
-	}
-
-	count = uint(dyn.Size / dyn.Entsize)
-dynLoop:
-	for i = 0; i < count; i++ {
-		var tag, val uint64
-
-		if f.Class == elf.ELFCLASS64 {
-			tag = f.ByteOrder.Uint64(data[(i*2+0)*8 : (i*2+1)*8])
-			val = f.ByteOrder.Uint64(data[(i*2+1)*8 : (i*2+2)*8])
-		} else {
-			tag = uint64(f.ByteOrder.Uint32(data[(i*2+0)*4 : (i*2+1)*4]))
-			val = uint64(f.ByteOrder.Uint32(data[(i*2+1)*4 : (i*2+2)*4]))
-		}
-
-		dtag := elf.DynTag(tag)
-		switch dtag {
-		case elf.DT_NULL:
-			break dynLoop
-		case elf.DT_NEEDED:
-			fallthrough
-		case elf.DT_RPATH:
-			fallthrough
-		case elf.DT_RUNPATH:
-			fallthrough
-		case elf.DT_SONAME:
-			sval := readElfString(stab, val)
-			info.dyns = append(info.dyns, DynInfo{dtag, sval})
-		default:
-			info.dyns = append(info.dyns, DynInfo{dtag, val})
-		}
-	}
-	return 0
-}
-
-func processDep(dep *DepsNode) {
-	// skip duplicate libraries
-	if _, ok := deps[dep.name]; ok {
-		return
-	}
-
-	info := DepsInfo{path: realPath(findLib(dep.name, dep.parent))}
-
-	if dep.parent == nil {
-		info.path = realPath(flag.Args()[0])
-	}
-
-	f, err := elf.Open(info.path)
-	if err != nil {
-		fmt.Printf("%v: %s (%s)\n", err, info.path, dep.name)
-		os.Exit(1)
-	}
-	defer f.Close()
-
-	info.mach = f.Machine
-	info.bits = f.Class
-	info.kind = f.Type
-	info.abi = f.OSABI
-	info.ver = f.ABIVersion
-	info.endian = f.ByteOrder
-
-	info.prog = f.Progs
-	info.sect = f.Sections
-
-	if f.Type != elf.ET_EXEC && f.Type != elf.ET_DYN {
-		fmt.Printf("elftree: `%s` seems not to be a valid ELF executable\n", dep.name)
-		os.Exit(1)
-	}
-
-	if readDynamic(f, &info) < 0 {
-		fmt.Printf("elftree: `%s` seems to be statically linked\n", dep.name)
-		os.Exit(1)
-	}
-
-	libs, err := f.ImportedLibraries()
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
-	isym, err := f.ImportedSymbols()
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
-	dsym, err := f.DynamicSymbols()
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
-	syms, err := f.Symbols()
-	if err == nil {
-		info.syms = syms
-	}
-
-	info.libs = libs
-	info.dsym = dsym
-	info.isym = isym
-
-	var L []*DepsNode
-	for _, soname := range libs {
-		N := new(DepsNode)
-		N.name = soname
-		N.parent = dep
-		N.depth = dep.depth + 1
-
-		L = append(L, N)
-		dep.child = append(dep.child, N)
-	}
-
-	deps_list = append(L, deps_list...)
-	deps[dep.name] = info
-}
-
-func printDepTree(n *DepsNode, f *elf.File) {
-	for i := 0; i < n.depth; i++ {
-		fmt.Printf("   ")
-	}
-
-	if showPath {
-		fmt.Printf("%s  => %s\n", n.name, deps[n.name].path)
-	} else {
-		fmt.Println(n.name)
-	}
-
-	for _, v := range n.child {
-		printDepTree(v, f)
-	}
-
-	if verbose && n.parent == nil {
-		showDetails(f, deps[n.name].path)
-	}
-}
-
-func showDetails(f *elf.File, pathname string) {
-	s := f.Section(".interp")
-	if s == nil {
-		fmt.Printf("static linked executable: %s\n", pathname)
-		os.Exit(1)
-	}
-	interp, err := s.Data()
-	if err != nil {
-		fmt.Printf("%v: %s\n", err, pathname)
-		os.Exit(1)
-	}
-
-	di_deps, err := f.ImportedLibraries()
-	if err != nil {
-		fmt.Printf("imported libraries: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Println()
-	fmt.Printf("%s: %s\n", path.Base(pathname), realPath(pathname))
-	fmt.Printf("  type:                     %s  (%s / %s / %s)\n",
-		f.Type, f.Machine, f.Class, f.ByteOrder)
-	fmt.Printf("  interpreter:              %s\n", string(interp))
-	fmt.Printf("  total dependency:         %d\n", len(deps)-1) // exclude itself
-	fmt.Printf("  direct dependency:        %d\n", len(di_deps))
+	return exitOK
 }
 
 func main() {
-	flag.Parse()
-
-	args := flag.Args()
-	if len(args) < 1 {
-		fmt.Println("Usage: elftree [<options>] <executable>")
-		os.Exit(1)
-	}
-
-	pathname := args[0]
-	f, err := elf.Open(pathname)
-	if err != nil {
-		if strings.HasPrefix(err.Error(), "bad magic number") {
-			fmt.Printf("elftree: `%s` is not an ELF file\n", pathname)
-		} else {
-			fmt.Printf("elftree: %v: %s\n", err, pathname)
-		}
-		os.Exit(1)
-	}
-	defer f.Close()
-
-	deps_root = new(DepsNode)
-	deps_root.name = path.Base(pathname)
-
-	deps_list = append(deps_list, deps_root)
-	for len(deps_list) > 0 {
-		// pop first element
-		dep := deps_list[0]
-		deps_list = deps_list[1:]
-
-		processDep(dep)
-	}
-
-	if showStdio {
-		showTui = false
-	}
-
-	if showTui {
-		ShowWithTUI(deps_root)
-	} else {
-		printDepTree(deps_root, f)
-	}
+	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
